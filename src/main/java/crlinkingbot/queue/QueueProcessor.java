@@ -71,11 +71,13 @@ public class QueueProcessor {
         System.out.println("PC is active, processing queue...");
         
         int processed = 0;
+        int initialQueueSize = requestQueue.size();
+        
         while (!requestQueue.isEmpty()) {
             LinkingRequest request = requestQueue.dequeue();
             if (request != null) {
                 processed++;
-                System.out.println("Processing request " + processed + "/" + requestQueue.size() + " from user " + request.getUserTag());
+                System.out.println("Processing request " + processed + " from user " + request.getUserTag());
                 
                 boolean success = processRequest(request);
                 
@@ -88,7 +90,7 @@ public class QueueProcessor {
                     System.out.println("Request failed after max retries, not re-queuing");
                 }
                 
-                // Small delay between processing requests
+                // Small delay between processing requests (but not after the last one if queue is empty)
                 if (!requestQueue.isEmpty()) {
                     try {
                         Thread.sleep(DELAY_BETWEEN_REQUESTS_MS);
