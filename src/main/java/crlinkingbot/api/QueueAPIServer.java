@@ -45,7 +45,15 @@ public class QueueAPIServer {
         
         // Get configuration from environment
         String portStr = System.getenv("QUEUE_API_PORT");
-        this.port = (portStr != null && !portStr.isEmpty()) ? Integer.parseInt(portStr) : 8090;
+        int portValue = 8090;
+        try {
+            if (portStr != null && !portStr.isEmpty()) {
+                portValue = Integer.parseInt(portStr);
+            }
+        } catch (NumberFormatException e) {
+            System.out.println("Invalid QUEUE_API_PORT value: " + portStr + ", using default port 8090");
+        }
+        this.port = portValue;
         
         this.apiSecret = System.getenv("QUEUE_API_SECRET");
         if (apiSecret == null || apiSecret.isEmpty()) {
