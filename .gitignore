@@ -10,3 +10,4 @@ target/
 .env
 *.log
 dependency-reduced-pom.xml
+linking_queue.json
