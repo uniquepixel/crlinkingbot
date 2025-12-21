@@ -55,12 +55,12 @@ public class GeminiVisionService {
 	 */
 	public static String extractPlayerTag(List<String> imageUrls) {
 		if (imageUrls == null || imageUrls.isEmpty()) {
-			logger.warn("No image URLs provided");
+			System.out.println("No image URLs provided");
 			return null;
 		}
 
 		try {
-			logger.info("Processing {} images for player tag extraction", imageUrls.size());
+			System.out.println("Processing " + imageUrls.size() + " images for player tag extraction");
 
 			// Upload images to Gemini File API and get URIs
 			List<String> fileUris = new ArrayList<>();
@@ -72,7 +72,7 @@ public class GeminiVisionService {
 			}
 
 			if (fileUris.isEmpty()) {
-				logger.warn("Failed to upload any images");
+				System.out.println("Failed to upload any images");
 				return null;
 			}
 
@@ -80,20 +80,20 @@ public class GeminiVisionService {
 			JSONObject request = buildGeminiRequest(fileUris);
 
 			// Call Gemini API
-			logger.info("Calling Gemini Vision API...");
+			System.out.println("Calling Gemini Vision API...");
 			String response = callGeminiAPI(request);
 
 			// Parse response
 			String playerTag = parseGeminiResponse(response);
 			if (playerTag != null) {
-				logger.info("Successfully extracted player tag: {}", playerTag);
+				System.out.println("Successfully extracted player tag: " + playerTag);
 			} else {
-				logger.warn("No player tag found in response");
+				System.out.println("No player tag found in response");
 			}
 
 			return playerTag;
 		} catch (Exception e) {
-			logger.error("Error extracting player tag from images", e);
+			System.out.println("Error extracting player tag from images: " + e);
 			return null;
 		}
 	}
@@ -104,7 +104,7 @@ public class GeminiVisionService {
 	private static String uploadImageToGemini(String imageUrl) {
 		try {
 			logger.debug("Downloading image from: {}", imageUrl);
-			
+
 			// First, download the image
 			URL url = new URL(imageUrl);
 			HttpURLConnection downloadConnection = (HttpURLConnection) url.openConnection();
@@ -121,7 +121,7 @@ public class GeminiVisionService {
 			// Get content type from response
 			String contentType = downloadConnection.getContentType();
 			if (contentType == null || !contentType.startsWith("image/")) {
-				contentType = "image/png"; // Default to image/png if content type is unknown
+				contentType = "image/png";
 			}
 
 			// Read image bytes
@@ -138,8 +138,9 @@ public class GeminiVisionService {
 
 			logger.debug("Downloaded image, size: {} bytes, content-type: {}", imageBytes.length, contentType);
 
-			// Now upload to Gemini File API
-			String uploadUrl = "https://generativelanguage.googleapis.com/upload/v1beta/files?key=" + Bot.getGenaiApiKey();
+			// Now upload to Gemini File API using multipart/form-data
+			String uploadUrl = "https://generativelanguage.googleapis.com/upload/v1beta/files?key="
+					+ Bot.getGenaiApiKey();
 			HttpURLConnection uploadConnection = (HttpURLConnection) new URL(uploadUrl).openConnection();
 			uploadConnection.setRequestMethod("POST");
 			uploadConnection.setDoOutput(true);
@@ -148,17 +149,14 @@ public class GeminiVisionService {
 
 			// Create multipart boundary
 			String boundary = "----WebKitFormBoundary" + System.currentTimeMillis();
-			uploadConnection.setRequestProperty("Content-Type", "multipart/related; boundary=" + boundary);
+			uploadConnection.setRequestProperty("Content-Type", "multipart/form-data; boundary=" + boundary);
 
-			// Build multipart request body
+			// Build multipart/form-data request body
 			try (OutputStream os = uploadConnection.getOutputStream()) {
-				// Write metadata part
+				// Write file part
 				os.write(("--" + boundary + "\r\n").getBytes(StandardCharsets.UTF_8));
-				os.write("Content-Type: application/json; charset=UTF-8\r\n\r\n".getBytes(StandardCharsets.UTF_8));
-				os.write("{\"file\":{\"display_name\":\"profile_screenshot\"}}\r\n".getBytes(StandardCharsets.UTF_8));
-
-				// Write file data part
-				os.write(("--" + boundary + "\r\n").getBytes(StandardCharsets.UTF_8));
+				os.write("Content-Disposition: form-data; name=\"file\"; filename=\"profile.png\"\r\n"
+						.getBytes(StandardCharsets.UTF_8));
 				os.write(("Content-Type: " + contentType + "\r\n\r\n").getBytes(StandardCharsets.UTF_8));
 				os.write(imageBytes);
 				os.write("\r\n".getBytes(StandardCharsets.UTF_8));
@@ -179,13 +177,13 @@ public class GeminiVisionService {
 						responseBuffer.write(buffer, 0, bytesRead);
 					}
 					String responseBody = responseBuffer.toString(StandardCharsets.UTF_8);
-					
+
 					// Parse JSON response to extract file URI
 					JSONObject responseJson = new JSONObject(responseBody);
 					JSONObject fileObject = responseJson.getJSONObject("file");
 					String fileUri = fileObject.getString("uri");
-					
-					logger.info("Successfully uploaded image to Gemini File API: {}", fileUri);
+
+					logger.info("Successfully uploaded image to Gemini File API:  {}", fileUri);
 					return fileUri;
 				}
 			} else {
@@ -202,12 +200,12 @@ public class GeminiVisionService {
 						errorMessage = errorBuffer.toString(StandardCharsets.UTF_8);
 					}
 				}
-				logger.error("Failed to upload image to Gemini File API, response code: {}, error: {}", 
+				logger.error("Failed to upload image to Gemini File API, response code: {}, error: {}",
 						uploadResponseCode, errorMessage);
 				return null;
 			}
 		} catch (Exception e) {
-			logger.error("Error uploading image to Gemini File API from: {}", imageUrl, e);
+			logger.error("Error uploading image to Gemini File API from:  {}", imageUrl, e);
 			return null;
 		}
 	}
