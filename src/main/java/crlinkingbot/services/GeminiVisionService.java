@@ -25,22 +25,36 @@ import java.util.regex.Pattern;
 public class GeminiVisionService {
 
 	private static final String PROMPT = """
-			Analysiere diese Clash Royale Profil-Screenshots und extrahiere den Spieler-Tag.
+			Extrahiere den Spielertag aus dem folgenden Clash-Royale-Profil-Screenshot fehlerfrei, auch bei schlechter Bildqualität.
 
-			Der Spieler-Tag:
-			- Beginnt IMMER mit dem # Symbol
-			- Enthält 8-10 Zeichen (Großbuchstaben und Zahlen)
-			- Beispiel: #ABC123XYZ oder #2PP
-			- Ist normalerweise unter dem Spielernamen oder im Profil zu finden
+			Aufgabe:
 
-			WICHTIG:
-			- Gib NUR den Spieler-Tag zurück, nichts anderes
-			- Format: #TAG (mit # am Anfang)
-			- Wenn kein Tag gefunden wurde, antworte mit: NOT_FOUND
-			- Keine Erklärungen, keine zusätzlichen Texte
+			Finde im Bild das Textfeld mit dem Spielertag.
 
-			Antwort (nur der Tag):
-			""";
+			Der Spielertag steht im Profilbereich unter dem Spielernamen und beginnt immer mit # (Beispiel: #2YLJPV0LQ).
+
+			Gib ausschließlich den erkannten Spielertag als Text aus, ohne Zusatz, ohne Erklärung, ohne Anführungszeichen.
+
+			Qualitätsanforderungen:
+
+			Nutze alle verfügbaren Techniken zur Texterkennung (OCR, Vergrößerung, Schärfung, Rauschunterdrückung), um auch bei Unschärfe oder Kompression den Text korrekt zu lesen.
+
+			Wenn einzelne Zeichen unscharf sind, wähle das wahrscheinlichste Zeichen basierend auf:
+
+			dem offiziellen Format von Clash-Royale-Tags (Großbuchstaben A–Z und Ziffern 0–9, beginnend mit #),
+
+			typischen Verwechslungen (z.B. 0 vs. O, 1 vs. I, 8 vs. B) und ihrer Form im Bild.
+
+			Vergleiche das Ergebnis mit gültigen Tag-Mustern und korrigiere offensichtliche OCR-Fehler.
+
+			Fehlersicherheit:
+
+			Wenn du dir nicht zu mindestens 95 % sicher bist, gib kein Ergebnis aus, sondern genau den Text:
+
+			UNSICHER
+
+			Sobald du einen Tag mit ≥95 % Sicherheit bestimmt hast, gib nur diesen Tag aus.
+						""";
 
 	private static final Pattern TAG_PATTERN = Pattern.compile("#[A-Z0-9]{3,10}");
 
@@ -78,10 +92,8 @@ public class GeminiVisionService {
 
 			// Call Gemini API
 			System.out.println("Calling Gemini Vision API...");
-			String response = callGeminiAPI(request);
+			String playerTag = parsePlayerTag(callGeminiAPI(request));
 
-			// Parse response
-			String playerTag = parseGeminiResponse(response);
 			if (playerTag != null) {
 				System.out.println("Successfully extracted player tag: " + playerTag);
 			} else {
@@ -197,7 +209,8 @@ public class GeminiVisionService {
 						errorMessage = errorBuffer.toString(StandardCharsets.UTF_8);
 					}
 				}
-				System.out.println("Failed to upload image to Gemini File API, response code: " + uploadResponseCode + ", error: " + errorMessage);
+				System.out.println("Failed to upload image to Gemini File API, response code: " + uploadResponseCode
+						+ ", error: " + errorMessage);
 				return null;
 			}
 		} catch (Exception e) {
@@ -254,31 +267,6 @@ public class GeminiVisionService {
 		System.out.println("Gemini response: " + response.text());
 
 		return response.text();
-	}
-
-	/**
-	 * Parse Gemini API response to extract player tag
-	 */
-	private static String parseGeminiResponse(String responseJson) {
-		try {
-			JSONObject response = new JSONObject(responseJson);
-			JSONArray candidates = response.getJSONArray("candidates");
-			if (candidates.length() > 0) {
-				JSONObject candidate = candidates.getJSONObject(0);
-				JSONObject content = candidate.getJSONObject("content");
-				JSONArray parts = content.getJSONArray("parts");
-				if (parts.length() > 0) {
-					JSONObject part = parts.getJSONObject(0);
-					String text = part.getString("text");
-					System.out.println("Gemini response text: " + text);
-					return parsePlayerTag(text);
-				}
-			}
-		} catch (Exception e) {
-			System.out.println("Error parsing Gemini response: " + e);
-			e.printStackTrace();
-		}
-		return null;
 	}
 
 	/**
