@@ -241,7 +241,7 @@ public class GeminiVisionService {
 		contents.put(content);
 		request.put("contents", contents);
 
-		System.out.println(request.toString());
+		logger.debug("Gemini request: {}", request.toString());
 
 		return request;
 	}
@@ -255,7 +255,7 @@ public class GeminiVisionService {
 
 		GenerateContentResponse response = client.models.generateContent("gemini-2.5-flash", request.toString(), null);
 
-		System.out.println(response.text());
+		logger.debug("Gemini response: {}", response.text());
 
 		return response.text();
 	}
