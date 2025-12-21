@@ -5,7 +5,6 @@ import com.sun.net.httpserver.HttpHandler;
 import com.sun.net.httpserver.HttpServer;
 import crlinkingbot.queue.LinkingRequest;
 import crlinkingbot.queue.RequestQueue;
-import crlinkingbot.services.GeminiVisionService;
 import crlinkingbot.services.LostCRManagerClient;
 import crlinkingbot.util.MessageUtil;
 import net.dv8tion.jda.api.JDA;

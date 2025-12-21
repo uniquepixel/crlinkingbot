@@ -4,7 +4,6 @@ import crlinkingbot.queue.LinkingRequest;
 import crlinkingbot.queue.RequestQueue;
 import crlinkingbot.util.MessageUtil;
 import net.dv8tion.jda.api.entities.Member;
-import net.dv8tion.jda.api.entities.Message;
 import net.dv8tion.jda.api.entities.Role;
 import net.dv8tion.jda.api.entities.channel.unions.MessageChannelUnion;
 import net.dv8tion.jda.api.events.interaction.command.SlashCommandInteractionEvent;
