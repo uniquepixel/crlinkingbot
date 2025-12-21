@@ -6,30 +6,26 @@ import net.dv8tion.jda.api.JDABuilder;
 import net.dv8tion.jda.api.interactions.commands.OptionType;
 import net.dv8tion.jda.api.interactions.commands.build.Commands;
 import net.dv8tion.jda.api.requests.GatewayIntent;
-import org.slf4j.Logger;
-import org.slf4j.LoggerFactory;
 
 /**
  * Main bot class that initializes the Discord bot and stores configuration.
  */
 public class Bot {
-    private static final Logger logger = LoggerFactory.getLogger(Bot.class);
-    
     // Configuration from environment variables
     private static String genaiApiKey;
     private static String lostCRManagerUrl;
     private static String lostCRManagerSecret;
     
     public static void main(String[] args) {
-        logger.info("Starting CR Linking Bot...");
+        System.out.println("Starting CR Linking Bot...");
         
         // Load environment variables
         if (!loadEnvironmentVariables()) {
-            logger.error("Failed to load environment variables. Exiting.");
+            System.out.println("Failed to load environment variables. Exiting.");
             System.exit(1);
         }
         
-        logger.info("Configuration loaded successfully");
+        System.out.println("Configuration loaded successfully");
         
         // Initialize JDA
         String botToken = System.getenv("CRLINKING_BOT_TOKEN");
@@ -52,10 +48,11 @@ public class Bot {
                             .addOption(OptionType.STRING, "message_link", "Link zur Nachricht mit den CR Screenshots", true)
             ).queue();
             
-            logger.info("CR Linking Bot is ready! Logged in as: {}", jda.getSelfUser().getAsTag());
-            logger.info("Slash command '/link' registered successfully");
+            System.out.println("CR Linking Bot is ready! Logged in as: " + jda.getSelfUser().getAsTag());
+            System.out.println("Slash command '/link' registered successfully");
         } catch (Exception e) {
-            logger.error("Failed to initialize JDA", e);
+            System.out.println("Failed to initialize JDA: " + e);
+            e.printStackTrace();
             System.exit(1);
         }
     }
@@ -70,26 +67,26 @@ public class Bot {
         lostCRManagerSecret = System.getenv("LOSTCRMANAGER_API_SECRET");
         
         if (botToken == null || botToken.isEmpty()) {
-            logger.error("CRLINKING_BOT_TOKEN environment variable is not set");
+            System.out.println("CRLINKING_BOT_TOKEN environment variable is not set");
             return false;
         }
         
         if (genaiApiKey == null || genaiApiKey.isEmpty()) {
-            logger.error("GOOGLE_GENAI_API_KEY environment variable is not set");
+            System.out.println("GOOGLE_GENAI_API_KEY environment variable is not set");
             return false;
         }
         
         if (lostCRManagerUrl == null || lostCRManagerUrl.isEmpty()) {
-            logger.error("LOSTCRMANAGER_API_URL environment variable is not set");
+            System.out.println("LOSTCRMANAGER_API_URL environment variable is not set");
             return false;
         }
         
         if (lostCRManagerSecret == null || lostCRManagerSecret.isEmpty()) {
-            logger.error("LOSTCRMANAGER_API_SECRET environment variable is not set");
+            System.out.println("LOSTCRMANAGER_API_SECRET environment variable is not set");
             return false;
         }
         
-        logger.info("Environment variables loaded successfully");
+        System.out.println("Environment variables loaded successfully");
         return true;
     }
     

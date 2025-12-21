@@ -12,8 +12,6 @@ import net.dv8tion.jda.api.events.interaction.command.SlashCommandInteractionEve
 import net.dv8tion.jda.api.hooks.ListenerAdapter;
 import net.dv8tion.jda.api.interactions.commands.OptionMapping;
 import org.json.JSONObject;
-import org.slf4j.Logger;
-import org.slf4j.LoggerFactory;
 
 import java.util.List;
 import java.util.stream.Collectors;
@@ -23,7 +21,6 @@ import java.util.stream.Collectors;
  * links.
  */
 public class LinkCommand extends ListenerAdapter {
-	private static final Logger logger = LoggerFactory.getLogger(LinkCommand.class);
 
 	// Allowed role IDs
 	private static final String ROLE_ID_1 = "1404574565350506587";
@@ -55,7 +52,7 @@ public class LinkCommand extends ListenerAdapter {
 				event.getHook().editOriginalEmbeds(
 						MessageUtil.createErrorEmbed(title, "Du hast keine Berechtigung, diesen Befehl auszuführen."))
 						.queue();
-				logger.warn("User {} attempted to use link command without permission", event.getUser().getAsTag());
+				System.out.println("User " + event.getUser().getAsTag() + " attempted to use link command without permission");
 				return;
 			}
 
@@ -89,7 +86,8 @@ public class LinkCommand extends ListenerAdapter {
 			try {
 				channel = event.getJDA().getChannelById(MessageChannelUnion.class, channelId);
 			} catch (Exception e) {
-				logger.error("Error getting channel by ID: {}", channelId, e);
+				System.out.println("Error getting channel by ID: " + channelId + " - " + e);
+				e.printStackTrace();
 			}
 
 			if (channel == null) {
@@ -128,7 +126,8 @@ public class LinkCommand extends ListenerAdapter {
 			}, error -> {
 				event.getHook().editOriginalEmbeds(MessageUtil.createErrorEmbed(title,
 						"Nachricht mit der ID `" + messageId + "` konnte nicht gefunden werden.")).queue();
-				logger.error("Error retrieving message: {}", messageId, error);
+				System.out.println("Error retrieving message: " + messageId + " - " + error);
+				error.printStackTrace();
 			});
 
 		}, "LinkCommand-" + event.getUser().getId() + "-" + System.currentTimeMillis()).start();
@@ -148,7 +147,7 @@ public class LinkCommand extends ListenerAdapter {
 
 			if (playerTag == null) {
 				// Tag not found
-				logger.warn("No player tag found in images");
+				System.out.println("No player tag found in images");
 				message.removeReaction(Emoji.fromUnicode("⏳")).queue();
 				message.addReaction(Emoji.fromUnicode("❌")).queue();
 
@@ -181,7 +180,7 @@ public class LinkCommand extends ListenerAdapter {
 				MessageUtil.sendSuccess(message.getChannel(), "Account verknüpft", successMessage);
 			} else {
 				// Error
-				logger.error("Failed to link player: {}", response.toString());
+				System.out.println("Failed to link player: " + response.toString());
 				message.removeReaction(Emoji.fromUnicode("⏳")).queue();
 				message.addReaction(Emoji.fromUnicode("❌")).queue();
 
@@ -204,10 +203,14 @@ public class LinkCommand extends ListenerAdapter {
 				MessageUtil.sendError(message.getChannel(), "Verknüpfung fehlgeschlagen", errorMessage);
 			}
 		} catch (Exception e) {
-			logger.error("Error processing images", e);
+			System.out.println("Error processing images: " + e);
+			e.printStackTrace();
 			message.removeReaction(Emoji.fromUnicode("⏳")).queue(
 					success -> message.addReaction(Emoji.fromUnicode("❌")).queue(),
-					error -> logger.error("Failed to update reactions", error));
+					error -> {
+						System.out.println("Failed to update reactions: " + error);
+						error.printStackTrace();
+					});
 
 			event.getHook()
 					.editOriginalEmbeds(
