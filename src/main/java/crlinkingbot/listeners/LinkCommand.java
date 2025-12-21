@@ -169,16 +169,6 @@ public class LinkCommand extends ListenerAdapter {
                                 "• Der Spieler-Tag (z.B. #ABC123) gut lesbar ist\n" +
                                 "• Das Bild nicht verschwommen oder zu klein ist"))
                         .queue();
-                
-                MessageUtil.sendError(
-                        message.getChannel(),
-                        "Spieler-Tag nicht gefunden",
-                        "Ich konnte keinen Clash Royale Spieler-Tag in den Screenshots finden.\n\n" +
-                        "Bitte stelle sicher, dass:\n" +
-                        "• Der Screenshot dein Clash Royale Profil zeigt\n" +
-                        "• Der Spieler-Tag (z.B. #ABC123) gut lesbar ist\n" +
-                        "• Das Bild nicht verschwommen oder zu klein ist"
-                );
                 return;
             }
             
