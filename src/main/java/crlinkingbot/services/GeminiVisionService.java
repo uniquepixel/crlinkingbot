@@ -11,10 +11,10 @@ import com.google.genai.Client;
 import com.google.genai.types.GenerateContentResponse;
 import java.io.ByteArrayOutputStream;
 import java.io.InputStream;
+import java.io.OutputStream;
 import java.net.HttpURLConnection;
 import java.net.URL;
 import java.util.ArrayList;
-import java.util.Base64;
 import java.util.List;
 import java.util.regex.Matcher;
 import java.util.regex.Pattern;
@@ -61,22 +61,22 @@ public class GeminiVisionService {
 		try {
 			logger.info("Processing {} images for player tag extraction", imageUrls.size());
 
-			// Download images and convert to base64
-			List<String> base64Images = new ArrayList<>();
+			// Upload images to Gemini File API and get URIs
+			List<String> fileUris = new ArrayList<>();
 			for (String imageUrl : imageUrls) {
-				String base64 = downloadAndEncodeImage(imageUrl);
-				if (base64 != null) {
-					base64Images.add(base64);
+				String fileUri = uploadImageToGemini(imageUrl);
+				if (fileUri != null) {
+					fileUris.add(fileUri);
 				}
 			}
 
-			if (base64Images.isEmpty()) {
-				logger.warn("Failed to download any images");
+			if (fileUris.isEmpty()) {
+				logger.warn("Failed to upload any images");
 				return null;
 			}
 
 			// Build request JSON
-			JSONObject request = buildGeminiRequest(base64Images);
+			JSONObject request = buildGeminiRequest(fileUris);
 
 			// Call Gemini API
 			logger.info("Calling Gemini Vision API...");
@@ -98,47 +98,115 @@ public class GeminiVisionService {
 	}
 
 	/**
-	 * Download an image and encode it as base64
+	 * Upload an image to Gemini File API and return the file URI
 	 */
-	private static String downloadAndEncodeImage(String imageUrl) {
+	private static String uploadImageToGemini(String imageUrl) {
 		try {
 			logger.debug("Downloading image from: {}", imageUrl);
+			
+			// First, download the image
 			URL url = new URL(imageUrl);
-			HttpURLConnection connection = (HttpURLConnection) url.openConnection();
-			connection.setRequestMethod("GET");
-			connection.setConnectTimeout(10000);
-			connection.setReadTimeout(10000);
+			HttpURLConnection downloadConnection = (HttpURLConnection) url.openConnection();
+			downloadConnection.setRequestMethod("GET");
+			downloadConnection.setConnectTimeout(10000);
+			downloadConnection.setReadTimeout(10000);
 
-			int responseCode = connection.getResponseCode();
+			int responseCode = downloadConnection.getResponseCode();
 			if (responseCode != 200) {
 				logger.warn("Failed to download image, response code: {}", responseCode);
 				return null;
 			}
 
 			// Get content type from response
-			String contentType = connection.getContentType();
+			String contentType = downloadConnection.getContentType();
+			if (contentType == null || !contentType.startsWith("image/")) {
+				contentType = "image/png"; // Default to image/png if content type is unknown
+			}
 
-			try (InputStream is = connection.getInputStream();
+			// Read image bytes
+			byte[] imageBytes;
+			try (InputStream is = downloadConnection.getInputStream();
 					ByteArrayOutputStream baos = new ByteArrayOutputStream()) {
 				byte[] buffer = new byte[4096];
 				int bytesRead;
 				while ((bytesRead = is.read(buffer)) != -1) {
 					baos.write(buffer, 0, bytesRead);
 				}
-				byte[] imageBytes = baos.toByteArray();
-				String base64 = Base64.getEncoder().encodeToString(imageBytes);
+				imageBytes = baos.toByteArray();
+			}
 
-				// Store both base64 and content type
-				// Return format: "content-type:base64-data"
-				if (contentType != null && (contentType.startsWith("image/"))) {
-					return contentType + ":" + base64;
-				} else {
-					// Default to image/png if content type is unknown
-					return "image/png:" + base64;
+			logger.debug("Downloaded image, size: {} bytes, content-type: {}", imageBytes.length, contentType);
+
+			// Now upload to Gemini File API
+			String uploadUrl = "https://generativelanguage.googleapis.com/upload/v1beta/files?key=" + Bot.getGenaiApiKey();
+			HttpURLConnection uploadConnection = (HttpURLConnection) new URL(uploadUrl).openConnection();
+			uploadConnection.setRequestMethod("POST");
+			uploadConnection.setDoOutput(true);
+			uploadConnection.setConnectTimeout(30000);
+			uploadConnection.setReadTimeout(30000);
+
+			// Create multipart boundary
+			String boundary = "----WebKitFormBoundary" + System.currentTimeMillis();
+			uploadConnection.setRequestProperty("Content-Type", "multipart/related; boundary=" + boundary);
+
+			// Build multipart request body
+			try (OutputStream os = uploadConnection.getOutputStream()) {
+				// Write metadata part
+				os.write(("--" + boundary + "\r\n").getBytes());
+				os.write("Content-Type: application/json; charset=UTF-8\r\n\r\n".getBytes());
+				os.write("{\"file\":{\"display_name\":\"profile_screenshot\"}}\r\n".getBytes());
+
+				// Write file data part
+				os.write(("--" + boundary + "\r\n").getBytes());
+				os.write(("Content-Type: " + contentType + "\r\n\r\n").getBytes());
+				os.write(imageBytes);
+				os.write("\r\n".getBytes());
+
+				// End boundary
+				os.write(("--" + boundary + "--\r\n").getBytes());
+				os.flush();
+			}
+
+			// Get response
+			int uploadResponseCode = uploadConnection.getResponseCode();
+			if (uploadResponseCode == 200) {
+				try (InputStream responseStream = uploadConnection.getInputStream();
+						ByteArrayOutputStream responseBuffer = new ByteArrayOutputStream()) {
+					byte[] buffer = new byte[4096];
+					int bytesRead;
+					while ((bytesRead = responseStream.read(buffer)) != -1) {
+						responseBuffer.write(buffer, 0, bytesRead);
+					}
+					String responseBody = responseBuffer.toString("UTF-8");
+					
+					// Parse JSON response to extract file URI
+					JSONObject responseJson = new JSONObject(responseBody);
+					JSONObject fileObject = responseJson.getJSONObject("file");
+					String fileUri = fileObject.getString("uri");
+					
+					logger.info("Successfully uploaded image to Gemini File API: {}", fileUri);
+					return fileUri;
 				}
+			} else {
+				// Try to read error response
+				String errorMessage = "Unknown error";
+				try (InputStream errorStream = uploadConnection.getErrorStream()) {
+					if (errorStream != null) {
+						ByteArrayOutputStream errorBuffer = new ByteArrayOutputStream();
+						byte[] buffer = new byte[4096];
+						int bytesRead;
+						while ((bytesRead = errorStream.read(buffer)) != -1) {
+							errorBuffer.write(buffer, 0, bytesRead);
+						}
+						errorMessage = errorBuffer.toString("UTF-8");
+					}
+				}
+				logger.error("Failed to upload image to Gemini File API, response code: {}, error: {}", 
+						uploadResponseCode, errorMessage);
+				return null;
 			}
 		} catch (Exception e) {
-			logger.error("Error downloading image from: {}", imageUrl, e);
+			logger.error("Error uploading image to Gemini File API from: {}", imageUrl, e);
 			return null;
 		}
 	}
@@ -146,7 +214,7 @@ public class GeminiVisionService {
 	/**
 	 * Build Gemini API request JSON
 	 */
-	private static JSONObject buildGeminiRequest(List<String> base64ImagesWithType) {
+	private static JSONObject buildGeminiRequest(List<String> fileUris) {
 		JSONObject request = new JSONObject();
 
 		JSONArray contents = new JSONArray();
@@ -160,18 +228,13 @@ public class GeminiVisionService {
 		textPart.put("text", PROMPT);
 		parts.put(textPart);
 
-		// Add images
-		for (String imageData : base64ImagesWithType) {
-			String[] parts_split = imageData.split(":", 2);
-			String mimeType = parts_split[0];
-			String base64 = parts_split.length > 1 ? parts_split[1] : parts_split[0];
-
-			JSONObject imagePart = new JSONObject();
-			JSONObject inlineData = new JSONObject();
-			inlineData.put("mime_type", mimeType);
-			inlineData.put("data", base64);
-			imagePart.put("inline_data", inlineData);
-			parts.put(imagePart);
+		// Add file references
+		for (String fileUri : fileUris) {
+			JSONObject filePart = new JSONObject();
+			JSONObject fileData = new JSONObject();
+			fileData.put("file_uri", fileUri);
+			filePart.put("file_data", fileData);
+			parts.put(filePart);
 		}
 
 		content.put("parts", parts);
