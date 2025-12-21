@@ -1,6 +1,8 @@
 package crlinkingbot;
 
 import crlinkingbot.listeners.LinkCommand;
+import crlinkingbot.queue.QueueProcessor;
+import crlinkingbot.queue.RequestQueue;
 import net.dv8tion.jda.api.JDA;
 import net.dv8tion.jda.api.JDABuilder;
 import net.dv8tion.jda.api.interactions.commands.OptionType;
@@ -16,6 +18,10 @@ public class Bot {
     private static String lostCRManagerUrl;
     private static String lostCRManagerSecret;
     
+    // Queue system components
+    private static RequestQueue requestQueue;
+    private static QueueProcessor queueProcessor;
+    
     public static void main(String[] args) {
         System.out.println("Starting CR Linking Bot...");
         
@@ -27,6 +33,10 @@ public class Bot {
         
         System.out.println("Configuration loaded successfully");
         
+        // Initialize request queue before JDA
+        System.out.println("Initializing request queue...");
+        requestQueue = new RequestQueue();
+        
         // Initialize JDA
         String botToken = System.getenv("CRLINKING_BOT_TOKEN");
         try {
@@ -37,7 +47,7 @@ public class Bot {
                             GatewayIntent.GUILD_MESSAGE_REACTIONS,
                             GatewayIntent.GUILD_MEMBERS
                     )
-                    .addEventListeners(new LinkCommand())
+                    .addEventListeners(new LinkCommand(requestQueue))
                     .build();
             
             jda.awaitReady();
@@ -50,6 +60,20 @@ public class Bot {
             
             System.out.println("CR Linking Bot is ready! Logged in as: " + jda.getSelfUser().getAsTag());
             System.out.println("Slash command '/link' registered successfully");
+            
+            // Initialize and start queue processor
+            System.out.println("Starting queue processor...");
+            queueProcessor = new QueueProcessor(requestQueue, jda);
+            queueProcessor.start();
+            
+            // Add shutdown hook
+            Runtime.getRuntime().addShutdownHook(new Thread(() -> {
+                System.out.println("Shutting down bot...");
+                if (queueProcessor != null) {
+                    queueProcessor.shutdown();
+                }
+            }));
+            
         } catch (Exception e) {
             System.out.println("Failed to initialize JDA: " + e);
             e.printStackTrace();
@@ -109,5 +133,12 @@ public class Bot {
      */
     public static String getLostCRManagerSecret() {
         return lostCRManagerSecret;
+    }
+    
+    /**
+     * Get the request queue
+     */
+    public static RequestQueue getRequestQueue() {
+        return requestQueue;
     }
 }

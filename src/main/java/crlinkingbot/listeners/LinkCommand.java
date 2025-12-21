@@ -1,17 +1,15 @@
 package crlinkingbot.listeners;
 
-import crlinkingbot.services.GeminiVisionService;
-import crlinkingbot.services.LostCRManagerClient;
+import crlinkingbot.queue.LinkingRequest;
+import crlinkingbot.queue.RequestQueue;
 import crlinkingbot.util.MessageUtil;
 import net.dv8tion.jda.api.entities.Member;
 import net.dv8tion.jda.api.entities.Message;
 import net.dv8tion.jda.api.entities.Role;
 import net.dv8tion.jda.api.entities.channel.unions.MessageChannelUnion;
-import net.dv8tion.jda.api.entities.emoji.Emoji;
 import net.dv8tion.jda.api.events.interaction.command.SlashCommandInteractionEvent;
 import net.dv8tion.jda.api.hooks.ListenerAdapter;
 import net.dv8tion.jda.api.interactions.commands.OptionMapping;
-import org.json.JSONObject;
 
 import java.util.List;
 import java.util.stream.Collectors;
@@ -25,6 +23,15 @@ public class LinkCommand extends ListenerAdapter {
 	// Allowed role IDs
 	private static final String ROLE_ID_1 = "1404574565350506587";
 	private static final String ROLE_ID_2 = "1108472754149281822";
+	
+	private final RequestQueue requestQueue;
+	
+	/**
+	 * Constructor accepts RequestQueue
+	 */
+	public LinkCommand(RequestQueue requestQueue) {
+		this.requestQueue = requestQueue;
+	}
 
 	@Override
 	public void onSlashCommandInteraction(SlashCommandInteractionEvent event) {
@@ -109,20 +116,42 @@ public class LinkCommand extends ListenerAdapter {
 					return;
 				}
 
-				// Add processing reaction to the target message
-				message.addReaction(Emoji.fromUnicode("⏳")).queue();
+				// Create linking request
+				String targetUserId = message.getAuthor().getId();
+				String targetUserTag = message.getAuthor().getAsTag();
+				String guildId = event.getGuild() != null ? event.getGuild().getId() : "unknown";
+				
+				LinkingRequest request = new LinkingRequest(
+					messageId, 
+					channelId, 
+					guildId,
+					targetUserId, 
+					targetUserTag, 
+					imageUrls
+				);
 
-				// Update command response
-				event.getHook()
-						.editOriginalEmbeds(MessageUtil.createInfoEmbed(title,
-								"Verarbeite " + imageUrls.size() + " Bild(er) aus der verlinkten Nachricht..."))
-						.queue();
+				// Enqueue the request
+				requestQueue.enqueue(request);
+				int queuePosition = requestQueue.size();
 
-				System.out.println("Processing " + imageUrls.size() + " images from message " + messageId
-						+ " in channel " + channelId + " by command from user " + event.getUser().getAsTag());
+				// Reply with success embed
+				String successMessage = String.format(
+					"Anfrage wurde zur Warteschlange hinzugefügt!\n\n" +
+					"**Position in Warteschlange:** %d\n" +
+					"**Bilder:** %d\n" +
+					"**Ziel-User:** <@%s>\n\n" +
+					"ℹ️ Die Verarbeitung erfolgt automatisch, wenn der PC verfügbar ist (Überprüfung alle 5 Minuten).",
+					queuePosition,
+					imageUrls.size(),
+					targetUserId
+				);
 
-				// Process images
-				processImages(event, message, imageUrls, message.getAuthor().getId());
+				event.getHook().editOriginalEmbeds(MessageUtil.createSuccessEmbed(title, successMessage)).queue();
+
+				System.out.println("Enqueued request for " + imageUrls.size() + " images from message " + messageId
+						+ " in channel " + channelId + " by command from user " + event.getUser().getAsTag()
+						+ " (queue position: " + queuePosition + ")");
+
 			}, error -> {
 				event.getHook().editOriginalEmbeds(MessageUtil.createErrorEmbed(title,
 						"Nachricht mit der ID `" + messageId + "` konnte nicht gefunden werden.")).queue();
@@ -131,97 +160,5 @@ public class LinkCommand extends ListenerAdapter {
 			});
 
 		}, "LinkCommand-" + event.getUser().getId() + "-" + System.currentTimeMillis()).start();
-	}
-
-	/**
-	 * Process images asynchronously to extract player tag and link player
-	 */
-	private void processImages(SlashCommandInteractionEvent event, Message message, List<String> imageUrls,
-			String targetUserId) {
-		String title = "CR Account Link";
-
-		try {
-			// Extract player tag using Gemini Vision
-			System.out.println("Extracting player tag from images...");
-			String playerTag = GeminiVisionService.extractPlayerTag(imageUrls);
-
-			if (playerTag == null) {
-				// Tag not found
-				System.out.println("No player tag found in images");
-				message.removeReaction(Emoji.fromUnicode("⏳")).queue();
-				message.addReaction(Emoji.fromUnicode("❌")).queue();
-
-				event.getHook().editOriginalEmbeds(MessageUtil.createErrorEmbed(title,
-						"Ich konnte keinen Clash Royale Spieler-Tag in den Screenshots finden.\n\n"
-								+ "Bitte stelle sicher, dass:\n" + "• Der Screenshot ein Clash Royale Profil zeigt\n"
-								+ "• Der Spieler-Tag (z.B. #ABC123) gut lesbar ist\n"
-								+ "• Das Bild nicht verschwommen oder zu klein ist"))
-						.queue();
-				return;
-			}
-
-			System.out.println("Found player tag: " + playerTag);
-
-			// Call lostcrmanager API to link player
-			System.out.println("Linking player " + playerTag + " to user " + targetUserId);
-			JSONObject response = LostCRManagerClient.linkPlayer(playerTag, targetUserId);
-
-			if (response.getBoolean("success")) {
-				// Success
-				System.out.println("Successfully linked player " + playerTag + " to user " + targetUserId);
-				message.removeReaction(Emoji.fromUnicode("⏳")).queue();
-				message.addReaction(Emoji.fromUnicode("✅")).queue();
-
-				String successMessage = String.format("Account wurde erfolgreich verknüpft!\n\n"
-						+ "**Spieler-Tag:** `%s`\n" + "**Discord User:** <@%s>", playerTag, targetUserId);
-
-				event.getHook().editOriginalEmbeds(MessageUtil.createSuccessEmbed(title, successMessage)).queue();
-
-				MessageUtil.sendSuccess(message.getChannel(), "Account verknüpft", successMessage);
-			} else {
-				// Error
-				System.out.println("Failed to link player: " + response.toString());
-				message.removeReaction(Emoji.fromUnicode("⏳")).queue();
-				message.addReaction(Emoji.fromUnicode("❌")).queue();
-
-				String errorMessage = "Es gab einen Fehler beim Verknüpfen des Accounts.";
-
-				// Try to extract error message from response
-				if (response.has("data") && response.getJSONObject("data").has("message")) {
-					String apiMessage = response.getJSONObject("data").getString("message");
-					errorMessage += "\n\n**Fehler:** " + apiMessage;
-				} else if (response.has("message")) {
-					String apiMessage = response.getString("message");
-					errorMessage += "\n\n**Fehler:** " + apiMessage;
-				} else if (response.has("error")) {
-					String apiError = response.getString("error");
-					errorMessage += "\n\n**Fehler:** " + apiError;
-				}
-
-				event.getHook().editOriginalEmbeds(MessageUtil.createErrorEmbed(title, errorMessage)).queue();
-
-				MessageUtil.sendError(message.getChannel(), "Verknüpfung fehlgeschlagen", errorMessage);
-			}
-		} catch (Exception e) {
-			System.out.println("Error processing images: " + e);
-			e.printStackTrace();
-			message.removeReaction(Emoji.fromUnicode("⏳")).queue(
-					success -> message.addReaction(Emoji.fromUnicode("❌")).queue(),
-					error -> {
-						System.out.println("Failed to update reactions: " + error);
-						error.printStackTrace();
-					});
-
-			event.getHook()
-					.editOriginalEmbeds(
-							MessageUtil.createErrorEmbed(title,
-									"Es gab einen unerwarteten Fehler beim Verarbeiten der Bilder.\n"
-											+ "Bitte versuche es erneut oder kontaktiere einen Administrator."))
-					.queue();
-
-			MessageUtil.sendError(message.getChannel(), "Fehler",
-					"Es gab einen unerwarteten Fehler beim Verarbeiten der Bilder.\n"
-							+ "Bitte versuche es erneut oder kontaktiere einen Administrator.");
-		}
 	}
 }

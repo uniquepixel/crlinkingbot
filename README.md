@@ -6,6 +6,10 @@ A Discord bot that extracts Clash Royale player tags from images via a slash com
 
 - **Command-Based Linking**: Use `/link` command with a message link to process screenshots
 - **Role-Based Permissions**: Only users with specific roles can execute the link command
+- **Queue System**: Requests are queued and processed when PC is available
+- **PC Activity Checking**: Automatically checks if LM Studio is running every 5 minutes
+- **Automatic Retry**: Failed requests are automatically retried up to 3 times
+- **Persistent Queue**: Queue survives bot restarts
 - **Gemini Vision API**: Automatically extracts player tags from Clash Royale profile screenshots
 - **API Integration**: Links player tags to Discord users via the lostcrmanager REST API
 - **User Feedback**: Provides clear feedback with emoji reactions and embed messages
@@ -15,11 +19,16 @@ A Discord bot that extracts Clash Royale player tags from images via a slash com
 
 1. A user posts a message with Clash Royale profile screenshots
 2. An authorized user (with required role) executes `/link` command with the message link
-3. Bot retrieves the message, extracts images, and adds a ⏳ reaction
-4. Images are analyzed using Google Gemini Vision API to extract the player tag
-5. Bot calls the lostcrmanager API to link the player tag to the Discord user
-6. On success: ✅ reaction and success message with player info
-7. On failure: ❌ reaction and error message explaining the issue
+3. Bot validates the message and adds the request to the queue
+4. User receives immediate feedback with queue position
+5. Every 5 minutes, the bot checks if the PC is active (LM Studio health check)
+6. When PC is active, the bot processes all queued requests:
+   - Retrieves the message and adds a ⏳ reaction
+   - Images are analyzed using Google Gemini Vision API to extract the player tag
+   - Bot calls the lostcrmanager API to link the player tag to the Discord user
+   - On success: ✅ reaction and success message with player info
+   - On failure: ❌ reaction and error message, request may be retried
+7. Failed requests are automatically retried up to 3 times
 
 ## Command Usage
 
@@ -72,6 +81,7 @@ Edit `.env` and set the following variables:
 - `GOOGLE_GENAI_API_KEY`: Your Google Gemini API key from [Google AI Studio](https://makersuite.google.com/app/apikey)
 - `LOSTCRMANAGER_API_URL`: URL to your lostcrmanager API (e.g., `http://localhost:7070`)
 - `LOSTCRMANAGER_API_SECRET`: Shared secret for API authentication
+- `LLM_PROXY_HEALTH_URL`: (Optional) Health check URL for PC activity detection (default: `http://localhost:8080/health`)
 
 ### 3. Build the Project
 
@@ -145,19 +155,59 @@ docker run --env-file .env crlinkingbot
    ```
    /link message_link:https://discord.com/channels/123456789/987654321/111222333
    ```
-4. Bot automatically:
-   - Reacts with ⏳ (processing) on the target message
+4. Bot responds with queue confirmation showing:
+   - Request added to queue
+   - Current queue position
+   - Note about PC activity checking (every 5 minutes)
+5. When PC is active, the bot automatically:
+   - Retrieves the message and adds ⏳ (processing) reaction
    - Extracts the player tag using AI
    - Links the account via the API
-   - Reacts with ✅ (success) or ❌ (error)
-   - Sends a detailed response message
+   - Adds ✅ (success) or ❌ (error) reaction
+   - Sends a detailed response message in the channel
+
+## Queue System
+
+The bot uses a persistent queue system that processes linking requests only when the PC (LM Studio) is available.
+
+### How the Queue Works
+
+- **Immediate Queueing**: When you use the `/link` command, the request is immediately added to the queue
+- **PC Activity Checking**: Every 5 minutes, the bot checks if LM Studio is running via health check at `LLM_PROXY_HEALTH_URL`
+- **Automatic Processing**: When PC is active, all queued requests are processed in order
+- **Retry Logic**: Failed requests are automatically retried up to 3 times
+- **Persistence**: The queue is saved to disk and survives bot restarts
+
+### Queue File Location
+
+The queue is stored in `linking_queue.json` in the same directory as the bot JAR file. This file is automatically created and managed by the bot.
+
+### Checking Queue Status
+
+You can check the queue status by looking at the bot's console output:
+- Queue size is logged when requests are added
+- PC activity status is logged every 5 minutes
+- Processing progress is logged for each request
+
+### Key Behaviors
+
+- **Queue survives restarts**: If the bot restarts, pending requests remain in the queue
+- **PC availability required**: Processing only happens when LM Studio health check succeeds
+- **Automatic retries**: Up to 3 retry attempts for failed requests
+- **Ordered processing**: Requests are processed in the order they were received
+- **2-second delay**: Small delay between processing requests to avoid rate limits
 
 ## Architecture
 
 ### Components
 
-- **Bot.java**: Main entry point, initializes JDA with slash command registration
-- **LinkCommand.java**: Slash command handler with role-based permission checking
+- **Bot.java**: Main entry point, initializes JDA and queue system
+- **LinkCommand.java**: Slash command handler that enqueues requests
+- **Queue System**:
+  - **LinkingRequest.java**: Data model for queue requests
+  - **RequestQueue.java**: Thread-safe persistent queue
+  - **PCActivityChecker.java**: Checks if LM Studio is running
+  - **QueueProcessor.java**: Scheduled processor that handles queued requests
 - **GeminiVisionService.java**: Handles image processing and tag extraction
 - **LostCRManagerClient.java**: HTTP client for the lostcrmanager API
 - **MessageUtil.java**: Utility for formatting Discord messages
