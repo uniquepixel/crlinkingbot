@@ -6,8 +6,8 @@ A Discord bot that extracts Clash Royale player tags from images via a slash com
 
 - **Command-Based Linking**: Use `/link` command with a message link to process screenshots
 - **Role-Based Permissions**: Only users with specific roles can execute the link command
-- **Queue System**: Requests are queued and processed when PC is available
-- **PC Activity Checking**: Automatically checks if LM Studio is running every 5 minutes
+- **Queue System**: Requests are queued and processed on-demand by an external queue worker
+- **REST API**: Exposes endpoints for external queue processing
 - **Automatic Retry**: Failed requests are automatically retried up to 3 times
 - **Persistent Queue**: Queue survives bot restarts
 - **Gemini Vision API**: Automatically extracts player tags from Clash Royale profile screenshots
@@ -19,16 +19,14 @@ A Discord bot that extracts Clash Royale player tags from images via a slash com
 
 1. A user posts a message with Clash Royale profile screenshots
 2. An authorized user (with required role) executes `/link` command with the message link
-3. Bot validates the message and adds the request to the queue
+3. Bot validates the message and adds the request to the queue with a ⏳ reaction
 4. User receives immediate feedback with queue position
-5. Every 5 minutes, the bot checks if the PC is active (LM Studio health check)
-6. When PC is active, the bot processes all queued requests:
-   - Retrieves the message and adds a ⏳ reaction
-   - Images are analyzed using Google Gemini Vision API to extract the player tag
-   - Bot calls the lostcrmanager API to link the player tag to the Discord user
-   - On success: ✅ reaction and success message with player info
-   - On failure: ❌ reaction and error message, request may be retried
-7. Failed requests are automatically retried up to 3 times
+5. An external queue worker processes requests via the REST API:
+   - Worker fetches pending requests from `/api/queue/pending`
+   - Worker processes images using Google Gemini Vision API to extract player tags
+   - Worker submits results via `/api/queue/result`
+   - Bot updates Discord reactions (✅ for success, ❌ for failure) and sends result messages
+6. Failed requests are automatically retried up to 3 times
 
 ## Command Usage
 
@@ -81,7 +79,8 @@ Edit `.env` and set the following variables:
 - `GOOGLE_GENAI_API_KEY`: Your Google Gemini API key from [Google AI Studio](https://makersuite.google.com/app/apikey)
 - `LOSTCRMANAGER_API_URL`: URL to your lostcrmanager API (e.g., `http://localhost:7070`)
 - `LOSTCRMANAGER_API_SECRET`: Shared secret for API authentication
-- `LLM_PROXY_HEALTH_URL`: (Optional) Health check URL for PC activity detection (default: `http://localhost:8080/health`)
+- `QUEUE_API_PORT`: Port for the queue API server (default: `8090`)
+- `QUEUE_API_SECRET`: Secret token for authenticating queue API requests
 
 ### 3. Build the Project
 
@@ -168,13 +167,12 @@ docker run --env-file .env crlinkingbot
 
 ## Queue System
 
-The bot uses a persistent queue system that processes linking requests only when the PC (LM Studio) is available.
+The bot uses a persistent queue system with a REST API for external queue processing.
 
 ### How the Queue Works
 
-- **Immediate Queueing**: When you use the `/link` command, the request is immediately added to the queue
-- **PC Activity Checking**: Every 5 minutes, the bot checks if LM Studio is running via health check at `LLM_PROXY_HEALTH_URL`
-- **Automatic Processing**: When PC is active, all queued requests are processed in order
+- **Immediate Queueing**: When you use the `/link` command, the request is immediately added to the queue with a ⏳ reaction
+- **External Processing**: An external queue worker processes requests via the REST API
 - **Retry Logic**: Failed requests are automatically retried up to 3 times
 - **Persistence**: The queue is saved to disk and survives bot restarts
 
@@ -182,32 +180,191 @@ The bot uses a persistent queue system that processes linking requests only when
 
 The queue is stored in `linking_queue.json` in the same directory as the bot JAR file. This file is automatically created and managed by the bot.
 
-### Checking Queue Status
+### Queue API Endpoints
 
-You can check the queue status by looking at the bot's console output:
-- Queue size is logged when requests are added
-- PC activity status is logged every 5 minutes
-- Processing progress is logged for each request
+The bot exposes a REST API for queue management on the configured port (default: 8090).
+
+#### Authentication
+
+All endpoints (except `/api/health`) require Bearer token authentication:
+
+```bash
+Authorization: Bearer <QUEUE_API_SECRET>
+```
+
+#### `GET /api/health`
+
+Health check endpoint (no authentication required).
+
+**Response:**
+```json
+{
+  "status": "healthy",
+  "queueSize": 5,
+  "timestamp": 1234567890
+}
+```
+
+#### `GET /api/queue/pending`
+
+Get all pending requests in the queue.
+
+**Response:**
+```json
+{
+  "success": true,
+  "count": 5,
+  "requests": [
+    {
+      "id": "uuid",
+      "messageId": "123",
+      "channelId": "456",
+      "guildId": "789",
+      "userId": "user123",
+      "userTag": "username#1234",
+      "imageUrls": ["url1", "url2"],
+      "timestamp": 1234567890,
+      "retryCount": 0
+    }
+  ]
+}
+```
+
+#### `POST /api/queue/result`
+
+Submit processing result for a request.
+
+**Request:**
+```json
+{
+  "requestId": "uuid",
+  "success": true,
+  "playerTag": "#ABC123",
+  "errorMessage": "optional error message"
+}
+```
+
+**Response (success):**
+```json
+{
+  "success": true,
+  "action": "completed",
+  "message": "Player linked successfully"
+}
+```
+
+**Response (retry):**
+```json
+{
+  "success": true,
+  "action": "requeued",
+  "message": "Request re-queued for retry (attempt 1/3)"
+}
+```
+
+**Response (failed):**
+```json
+{
+  "success": true,
+  "action": "failed",
+  "message": "Request failed after max retries"
+}
+```
+
+#### `GET /api/queue/stats`
+
+Get queue statistics.
+
+**Response:**
+```json
+{
+  "success": true,
+  "queueSize": 5,
+  "oldestRequest": 1234567890,
+  "newestRequest": 1234567999
+}
+```
+
+### Example Queue Worker
+
+Here's an example Python script for processing the queue:
+
+```python
+import requests
+import time
+
+API_BASE_URL = "http://localhost:8090"
+API_SECRET = "your_secret_token_here"
+HEADERS = {"Authorization": f"Bearer {API_SECRET}"}
+
+def process_queue():
+    # Get pending requests
+    response = requests.get(f"{API_BASE_URL}/api/queue/pending", headers=HEADERS)
+    data = response.json()
+    
+    if not data.get("success") or data.get("count") == 0:
+        print("No pending requests")
+        return
+    
+    # Process each request
+    for request in data["requests"]:
+        request_id = request["id"]
+        image_urls = request["imageUrls"]
+        
+        print(f"Processing request {request_id}")
+        
+        # Process images (implement your image processing logic here)
+        # For example, use Gemini Vision API to extract player tag
+        try:
+            player_tag = extract_player_tag(image_urls)
+            
+            # Submit success result
+            result = {
+                "requestId": request_id,
+                "success": True,
+                "playerTag": player_tag
+            }
+            requests.post(f"{API_BASE_URL}/api/queue/result", json=result, headers=HEADERS)
+            print(f"Successfully processed {request_id}")
+            
+        except Exception as e:
+            # Submit failure result
+            result = {
+                "requestId": request_id,
+                "success": False,
+                "errorMessage": str(e)
+            }
+            requests.post(f"{API_BASE_URL}/api/queue/result", json=result, headers=HEADERS)
+            print(f"Failed to process {request_id}: {e}")
+
+# Run worker in a loop
+while True:
+    try:
+        process_queue()
+    except Exception as e:
+        print(f"Error: {e}")
+    time.sleep(60)  # Check every minute
+```
 
 ### Key Behaviors
 
 - **Queue survives restarts**: If the bot restarts, pending requests remain in the queue
-- **PC availability required**: Processing only happens when LM Studio health check succeeds
+- **External processing**: Queue is processed by external workers via the REST API
 - **Automatic retries**: Up to 3 retry attempts for failed requests
 - **Ordered processing**: Requests are processed in the order they were received
-- **2-second delay**: Small delay between processing requests to avoid rate limits
+- **Thread-safe**: Queue operations are thread-safe for concurrent API access
 
 ## Architecture
 
 ### Components
 
-- **Bot.java**: Main entry point, initializes JDA and queue system
+- **Bot.java**: Main entry point, initializes JDA, queue system, and API server
 - **LinkCommand.java**: Slash command handler that enqueues requests
 - **Queue System**:
   - **LinkingRequest.java**: Data model for queue requests
   - **RequestQueue.java**: Thread-safe persistent queue
-  - **PCActivityChecker.java**: Checks if LM Studio is running
-  - **QueueProcessor.java**: Scheduled processor that handles queued requests
+- **API Server**:
+  - **QueueAPIServer.java**: REST API server for queue management
 - **GeminiVisionService.java**: Handles image processing and tag extraction
 - **LostCRManagerClient.java**: HTTP client for the lostcrmanager API
 - **MessageUtil.java**: Utility for formatting Discord messages

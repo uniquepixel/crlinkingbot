@@ -1,7 +1,7 @@
 package crlinkingbot;
 
+import crlinkingbot.api.QueueAPIServer;
 import crlinkingbot.listeners.LinkCommand;
-import crlinkingbot.queue.QueueProcessor;
 import crlinkingbot.queue.RequestQueue;
 import net.dv8tion.jda.api.JDA;
 import net.dv8tion.jda.api.JDABuilder;
@@ -20,7 +20,7 @@ public class Bot {
     
     // Queue system components
     private static RequestQueue requestQueue;
-    private static QueueProcessor queueProcessor;
+    private static QueueAPIServer apiServer;
     
     public static void main(String[] args) {
         System.out.println("Starting CR Linking Bot...");
@@ -61,16 +61,16 @@ public class Bot {
             System.out.println("CR Linking Bot is ready! Logged in as: " + jda.getSelfUser().getAsTag());
             System.out.println("Slash command '/link' registered successfully");
             
-            // Initialize and start queue processor
-            System.out.println("Starting queue processor...");
-            queueProcessor = new QueueProcessor(requestQueue, jda);
-            queueProcessor.start();
+            // Initialize and start queue API server
+            System.out.println("Starting queue API server...");
+            apiServer = new QueueAPIServer(requestQueue, jda);
+            apiServer.start();
             
             // Add shutdown hook
             Runtime.getRuntime().addShutdownHook(new Thread(() -> {
                 System.out.println("Shutting down bot...");
-                if (queueProcessor != null) {
-                    queueProcessor.shutdown();
+                if (apiServer != null) {
+                    apiServer.shutdown();
                 }
             }));
             
