@@ -80,6 +80,30 @@ public class RequestQueue {
     }
 
     /**
+     * Remove a specific request by ID
+     * 
+     * @param requestId The ID of the request to remove
+     * @return The removed request, or null if not found
+     */
+    public synchronized LinkingRequest removeById(String requestId) {
+        LinkingRequest found = null;
+        for (LinkingRequest request : queue) {
+            if (request.getId().equals(requestId)) {
+                found = request;
+                break;
+            }
+        }
+        
+        if (found != null) {
+            queue.remove(found);
+            saveQueue();
+            System.out.println("Removed request " + requestId + " from queue");
+        }
+        
+        return found;
+    }
+
+    /**
      * Clear all requests
      */
     public synchronized void clear() {

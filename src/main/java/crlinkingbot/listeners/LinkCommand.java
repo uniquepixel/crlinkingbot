@@ -133,17 +133,16 @@ public class LinkCommand extends ListenerAdapter {
 				// Enqueue the request
 				requestQueue.enqueue(request);
 				int queuePosition = requestQueue.size();
+				
+				// Add processing reaction to the original message
+				message.addReaction(net.dv8tion.jda.api.entities.emoji.Emoji.fromUnicode("⏳")).queue();
 
 				// Reply with success embed
 				String successMessage = String.format(
 					"Anfrage wurde zur Warteschlange hinzugefügt!\n\n" +
-					"**Position in Warteschlange:** %d\n" +
-					"**Bilder:** %d\n" +
-					"**Ziel-User:** <@%s>\n\n" +
-					"ℹ️ Die Verarbeitung erfolgt automatisch, wenn der PC verfügbar ist (Überprüfung alle 5 Minuten).",
-					queuePosition,
-					imageUrls.size(),
-					targetUserId
+					"**Position in der Warteschlange:** %d\n\n" +
+					"Die Anfrage wird verarbeitet, sobald der Queue Worker ausgeführt wird.",
+					queuePosition
 				);
 
 				event.getHook().editOriginalEmbeds(MessageUtil.createSuccessEmbed(title, successMessage)).queue();
