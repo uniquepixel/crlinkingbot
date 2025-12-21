@@ -117,6 +117,9 @@ public class GeminiVisionService {
                 return null;
             }
             
+            // Get content type from response
+            String contentType = connection.getContentType();
+            
             try (InputStream is = connection.getInputStream();
                  ByteArrayOutputStream baos = new ByteArrayOutputStream()) {
                 byte[] buffer = new byte[4096];
@@ -125,7 +128,16 @@ public class GeminiVisionService {
                     baos.write(buffer, 0, bytesRead);
                 }
                 byte[] imageBytes = baos.toByteArray();
-                return Base64.getEncoder().encodeToString(imageBytes);
+                String base64 = Base64.getEncoder().encodeToString(imageBytes);
+                
+                // Store both base64 and content type
+                // Return format: "content-type:base64-data"
+                if (contentType != null && (contentType.startsWith("image/"))) {
+                    return contentType + ":" + base64;
+                } else {
+                    // Default to image/png if content type is unknown
+                    return "image/png:" + base64;
+                }
             }
         } catch (Exception e) {
             logger.error("Error downloading image from: {}", imageUrl, e);
@@ -136,7 +148,7 @@ public class GeminiVisionService {
     /**
      * Build Gemini API request JSON
      */
-    private static JSONObject buildGeminiRequest(List<String> base64Images) {
+    private static JSONObject buildGeminiRequest(List<String> base64ImagesWithType) {
         JSONObject request = new JSONObject();
         
         JSONArray contents = new JSONArray();
@@ -151,11 +163,15 @@ public class GeminiVisionService {
         parts.put(textPart);
         
         // Add images
-        for (String base64Image : base64Images) {
+        for (String imageData : base64ImagesWithType) {
+            String[] parts_split = imageData.split(":", 2);
+            String mimeType = parts_split[0];
+            String base64 = parts_split.length > 1 ? parts_split[1] : parts_split[0];
+            
             JSONObject imagePart = new JSONObject();
             JSONObject inlineData = new JSONObject();
-            inlineData.put("mime_type", "image/png");
-            inlineData.put("data", base64Image);
+            inlineData.put("mime_type", mimeType);
+            inlineData.put("data", base64);
             imagePart.put("inline_data", inlineData);
             parts.put(imagePart);
         }

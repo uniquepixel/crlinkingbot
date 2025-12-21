@@ -145,7 +145,8 @@ docker run --env-file .env crlinkingbot
 ### Dependencies
 
 - **JDA 5.0.0-alpha.14**: Discord API wrapper for Java
-- **Google Cloud AI Platform 3.22.0**: Google Gemini Vision API client
+- **Google API Client 2.2.0**: Google API HTTP client
+- **Google HTTP Client Gson 1.43.3**: JSON support for Google API client
 - **org.json 20230227**: JSON parsing library
 - **SLF4J 2.0.7**: Logging framework
 
