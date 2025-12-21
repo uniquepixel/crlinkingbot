@@ -75,8 +75,9 @@ public class LinkCommand extends ListenerAdapter {
             String messagelink = messagelinkOption.getAsString();
             
             // Parse message link to extract channel ID and message ID
+            // Expected format: https://discord.com/channels/SERVER_ID/CHANNEL_ID/MESSAGE_ID
             String[] parts = messagelink.split("/");
-            if (parts.length < 2) {
+            if (parts.length < 7) {
                 event.getHook()
                         .editOriginalEmbeds(MessageUtil.createErrorEmbed(title,
                                 "Ungültiger Message-Link. Format sollte sein: https://discord.com/channels/SERVER_ID/CHANNEL_ID/MESSAGE_ID"))
