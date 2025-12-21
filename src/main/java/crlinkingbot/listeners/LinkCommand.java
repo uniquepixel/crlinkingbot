@@ -104,8 +104,6 @@ public class LinkCommand extends ListenerAdapter {
                 return;
             }
             
-            // Retrieve the message
-            MessageChannelUnion finalChannel = channel;
             channel.retrieveMessageById(messageId).queue(message -> {
                 // Check if message has image attachments
                 List<String> imageUrls = message.getAttachments().stream()
