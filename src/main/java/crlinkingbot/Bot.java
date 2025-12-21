@@ -1,8 +1,10 @@
 package crlinkingbot;
 
-import crlinkingbot.listeners.TicketListener;
+import crlinkingbot.listeners.LinkCommand;
 import net.dv8tion.jda.api.JDA;
 import net.dv8tion.jda.api.JDABuilder;
+import net.dv8tion.jda.api.interactions.commands.OptionType;
+import net.dv8tion.jda.api.interactions.commands.build.Commands;
 import net.dv8tion.jda.api.requests.GatewayIntent;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
@@ -36,13 +38,22 @@ public class Bot {
                     .enableIntents(
                             GatewayIntent.GUILD_MESSAGES,
                             GatewayIntent.MESSAGE_CONTENT,
-                            GatewayIntent.GUILD_MESSAGE_REACTIONS
+                            GatewayIntent.GUILD_MESSAGE_REACTIONS,
+                            GatewayIntent.GUILD_MEMBERS
                     )
-                    .addEventListeners(new TicketListener())
+                    .addEventListeners(new LinkCommand())
                     .build();
             
             jda.awaitReady();
+            
+            // Register slash commands
+            jda.updateCommands().addCommands(
+                    Commands.slash("link", "Link einen Clash Royale Account über eine Nachricht mit Screenshots")
+                            .addOption(OptionType.STRING, "message_link", "Link zur Nachricht mit den CR Screenshots", true)
+            ).queue();
+            
             logger.info("CR Linking Bot is ready! Logged in as: {}", jda.getSelfUser().getAsTag());
+            logger.info("Slash command '/link' registered successfully");
         } catch (Exception e) {
             logger.error("Failed to initialize JDA", e);
             System.exit(1);

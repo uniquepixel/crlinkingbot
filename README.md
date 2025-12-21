@@ -1,31 +1,45 @@
 # CR Linking Bot
 
-A Discord bot that automatically extracts Clash Royale player tags from images posted in ticket channels and links them to Discord users via the lostcrmanager REST API.
+A Discord bot that extracts Clash Royale player tags from images via a slash command and links them to Discord users via the lostcrmanager REST API.
 
 ## Features
 
-- **Automatic Tag Detection**: Uses Google Gemini Vision API to extract player tags from Clash Royale profile screenshots
-- **Ticket Channel Monitoring**: Automatically processes images posted in designated ticket channels
+- **Command-Based Linking**: Use `/link` command with a message link to process screenshots
+- **Role-Based Permissions**: Only users with specific roles can execute the link command
+- **Gemini Vision API**: Automatically extracts player tags from Clash Royale profile screenshots
 - **API Integration**: Links player tags to Discord users via the lostcrmanager REST API
 - **User Feedback**: Provides clear feedback with emoji reactions and embed messages
 - **Error Handling**: Comprehensive error handling with helpful error messages in German
 
 ## How It Works
 
-1. User posts a message with Clash Royale profile screenshots in a ticket channel
-2. Bot detects the images and adds a ⏳ reaction to indicate processing
-3. Images are analyzed using Google Gemini Vision API to extract the player tag
-4. Bot calls the lostcrmanager API to link the player tag to the Discord user
-5. On success: ✅ reaction and success message with player info
-6. On failure: ❌ reaction and error message explaining the issue
+1. A user posts a message with Clash Royale profile screenshots
+2. An authorized user (with required role) executes `/link` command with the message link
+3. Bot retrieves the message, extracts images, and adds a ⏳ reaction
+4. Images are analyzed using Google Gemini Vision API to extract the player tag
+5. Bot calls the lostcrmanager API to link the player tag to the Discord user
+6. On success: ✅ reaction and success message with player info
+7. On failure: ❌ reaction and error message explaining the issue
 
-## Ticket Channel Detection
+## Command Usage
 
-The bot considers a channel to be a ticket channel if its name:
-- Contains "ticket"
-- Contains "bewerbung" (German for application)
-- Contains "application"
-- Matches the pattern `ticket-<number>` (e.g., `ticket-123`)
+### `/link message_link:`
+
+Links a Clash Royale account by analyzing screenshots from a Discord message.
+
+**Parameters:**
+- `message_link` (required): The full Discord message link containing CR profile screenshots
+
+**Example:**
+```
+/link message_link:https://discord.com/channels/123456789/987654321/111222333
+```
+
+**Required Roles:**
+- Role ID: `1404574565350506587`
+- Role ID: `1108472754149281822`
+
+Only users with one of these roles can execute the command.
 
 ## Prerequisites
 
@@ -110,8 +124,9 @@ docker run --env-file .env crlinkingbot
 4. Copy the bot token to your `.env` file
 5. Enable the following Privileged Gateway Intents:
    - Message Content Intent
+   - Server Members Intent
 6. Go to OAuth2 > URL Generator
-7. Select scopes: `bot`
+7. Select scopes: `bot`, `applications.commands`
 8. Select bot permissions:
    - Read Messages/View Channels
    - Send Messages
@@ -119,25 +134,30 @@ docker run --env-file .env crlinkingbot
    - Attach Files
    - Read Message History
    - Add Reactions
+   - Use Slash Commands
 9. Use the generated URL to invite the bot to your server
 
 ## Usage Example
 
-1. Create a ticket channel (e.g., `ticket-123` or `bewerbung-john`)
-2. User posts a message with Clash Royale profile screenshot(s)
-3. Bot automatically:
-   - Reacts with ⏳ (processing)
+1. User posts a Clash Royale profile screenshot in any channel
+2. Copy the message link (Right-click message → Copy Message Link)
+3. Authorized user executes the slash command:
+   ```
+   /link message_link:https://discord.com/channels/123456789/987654321/111222333
+   ```
+4. Bot automatically:
+   - Reacts with ⏳ (processing) on the target message
    - Extracts the player tag using AI
    - Links the account via the API
    - Reacts with ✅ (success) or ❌ (error)
-   - Sends a detailed message with the result
+   - Sends a detailed response message
 
 ## Architecture
 
 ### Components
 
-- **Bot.java**: Main entry point, initializes JDA and Gemini client
-- **TicketListener.java**: Listens for messages with images in ticket channels
+- **Bot.java**: Main entry point, initializes JDA with slash command registration
+- **LinkCommand.java**: Slash command handler with role-based permission checking
 - **GeminiVisionService.java**: Handles image processing and tag extraction
 - **LostCRManagerClient.java**: HTTP client for the lostcrmanager API
 - **MessageUtil.java**: Utility for formatting Discord messages
@@ -192,11 +212,24 @@ sudo systemctl status crlinkingbot
 
 ## Troubleshooting
 
-### Bot doesn't respond to images
+### Command doesn't appear
 
-- Check that the channel name matches ticket detection criteria
-- Verify the bot has permission to read messages and add reactions
-- Check logs for errors
+- Make sure the bot has been invited with `applications.commands` scope
+- The slash command is registered when the bot starts
+- Wait a few minutes for Discord to sync the command
+
+### "No permission" error
+
+- Verify the user has one of the required roles:
+  - Role ID: `1404574565350506587`
+  - Role ID: `1108472754149281822`
+- Check that the Server Members Intent is enabled
+
+### "Channel not found" error
+
+- Ensure the bot has access to the channel in the message link
+- Verify the message link format is correct
+- Check that the bot is in the same server as the linked message
 
 ### "Spieler-Tag nicht gefunden" error
 

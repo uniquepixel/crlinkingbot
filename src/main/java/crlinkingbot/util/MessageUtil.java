@@ -94,4 +94,20 @@ public class MessageUtil {
                 .setTimestamp(Instant.now())
                 .build();
     }
+    
+    /**
+     * Create an info embed
+     * 
+     * @param title The title of the embed
+     * @param description The description of the embed
+     * @return MessageEmbed object
+     */
+    public static MessageEmbed createInfoEmbed(String title, String description) {
+        return new EmbedBuilder()
+                .setTitle("ℹ️ " + title)
+                .setDescription(description)
+                .setColor(Color.BLUE)
+                .setTimestamp(Instant.now())
+                .build();
+    }
 }
