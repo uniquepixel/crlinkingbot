@@ -14,6 +14,7 @@ import java.io.InputStream;
 import java.io.OutputStream;
 import java.net.HttpURLConnection;
 import java.net.URL;
+import java.nio.charset.StandardCharsets;
 import java.util.ArrayList;
 import java.util.List;
 import java.util.regex.Matcher;
@@ -152,18 +153,18 @@ public class GeminiVisionService {
 			// Build multipart request body
 			try (OutputStream os = uploadConnection.getOutputStream()) {
 				// Write metadata part
-				os.write(("--" + boundary + "\r\n").getBytes());
-				os.write("Content-Type: application/json; charset=UTF-8\r\n\r\n".getBytes());
-				os.write("{\"file\":{\"display_name\":\"profile_screenshot\"}}\r\n".getBytes());
+				os.write(("--" + boundary + "\r\n").getBytes(StandardCharsets.UTF_8));
+				os.write("Content-Type: application/json; charset=UTF-8\r\n\r\n".getBytes(StandardCharsets.UTF_8));
+				os.write("{\"file\":{\"display_name\":\"profile_screenshot\"}}\r\n".getBytes(StandardCharsets.UTF_8));
 
 				// Write file data part
-				os.write(("--" + boundary + "\r\n").getBytes());
-				os.write(("Content-Type: " + contentType + "\r\n\r\n").getBytes());
+				os.write(("--" + boundary + "\r\n").getBytes(StandardCharsets.UTF_8));
+				os.write(("Content-Type: " + contentType + "\r\n\r\n").getBytes(StandardCharsets.UTF_8));
 				os.write(imageBytes);
-				os.write("\r\n".getBytes());
+				os.write("\r\n".getBytes(StandardCharsets.UTF_8));
 
 				// End boundary
-				os.write(("--" + boundary + "--\r\n").getBytes());
+				os.write(("--" + boundary + "--\r\n").getBytes(StandardCharsets.UTF_8));
 				os.flush();
 			}
 
@@ -177,7 +178,7 @@ public class GeminiVisionService {
 					while ((bytesRead = responseStream.read(buffer)) != -1) {
 						responseBuffer.write(buffer, 0, bytesRead);
 					}
-					String responseBody = responseBuffer.toString("UTF-8");
+					String responseBody = responseBuffer.toString(StandardCharsets.UTF_8);
 					
 					// Parse JSON response to extract file URI
 					JSONObject responseJson = new JSONObject(responseBody);
@@ -198,7 +199,7 @@ public class GeminiVisionService {
 						while ((bytesRead = errorStream.read(buffer)) != -1) {
 							errorBuffer.write(buffer, 0, bytesRead);
 						}
-						errorMessage = errorBuffer.toString("UTF-8");
+						errorMessage = errorBuffer.toString(StandardCharsets.UTF_8);
 					}
 				}
 				logger.error("Failed to upload image to Gemini File API, response code: {}, error: {}", 
