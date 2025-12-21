@@ -2,8 +2,6 @@ package crlinkingbot.services;
 
 import crlinkingbot.Bot;
 import org.json.JSONObject;
-import org.slf4j.Logger;
-import org.slf4j.LoggerFactory;
 
 import java.io.BufferedReader;
 import java.io.InputStreamReader;
@@ -16,7 +14,6 @@ import java.nio.charset.StandardCharsets;
  * HTTP client for calling the lostcrmanager REST API.
  */
 public class LostCRManagerClient {
-    private static final Logger logger = LoggerFactory.getLogger(LostCRManagerClient.class);
     
     /**
      * Link a player tag to a Discord user via the lostcrmanager API
@@ -28,7 +25,7 @@ public class LostCRManagerClient {
     public static JSONObject linkPlayer(String playerTag, String userId) {
         try {
             String apiUrl = Bot.getLostCRManagerUrl() + "/api/link";
-            logger.info("Calling lostcrmanager API: {} for user {} with tag {}", apiUrl, userId, playerTag);
+            System.out.println("Calling lostcrmanager API: " + apiUrl + " for user " + userId + " with tag " + playerTag);
             
             // Build request body
             JSONObject requestBody = new JSONObject();
@@ -54,7 +51,7 @@ public class LostCRManagerClient {
             
             // Read response
             int responseCode = connection.getResponseCode();
-            logger.info("API response code: {}", responseCode);
+            System.out.println("API response code: " + responseCode);
             
             StringBuilder response = new StringBuilder();
             try (BufferedReader br = new BufferedReader(
@@ -70,7 +67,7 @@ public class LostCRManagerClient {
             }
             
             String responseBody = response.toString();
-            logger.info("API response body: {}", responseBody);
+            System.out.println("API response body: " + responseBody);
             
             // Parse response
             JSONObject result = new JSONObject();
@@ -88,7 +85,8 @@ public class LostCRManagerClient {
             
             return result;
         } catch (Exception e) {
-            logger.error("Error calling lostcrmanager API", e);
+            System.out.println("Error calling lostcrmanager API: " + e);
+            e.printStackTrace();
             JSONObject errorResult = new JSONObject();
             errorResult.put("success", false);
             errorResult.put("error", e.getMessage());

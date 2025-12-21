@@ -4,8 +4,6 @@ import crlinkingbot.Bot;
 
 import org.json.JSONArray;
 import org.json.JSONObject;
-import org.slf4j.Logger;
-import org.slf4j.LoggerFactory;
 
 import com.google.genai.Client;
 import com.google.genai.types.GenerateContentResponse;
@@ -25,7 +23,6 @@ import java.util.regex.Pattern;
  * Gemini Vision API.
  */
 public class GeminiVisionService {
-	private static final Logger logger = LoggerFactory.getLogger(GeminiVisionService.class);
 
 	private static final String PROMPT = """
 			Analysiere diese Clash Royale Profil-Screenshots und extrahiere den Spieler-Tag.
@@ -103,7 +100,7 @@ public class GeminiVisionService {
 	 */
 	private static String uploadImageToGemini(String imageUrl) {
 		try {
-			logger.debug("Downloading image from: {}", imageUrl);
+			System.out.println("Downloading image from: " + imageUrl);
 
 			// First, download the image
 			URL url = new URL(imageUrl);
@@ -114,7 +111,7 @@ public class GeminiVisionService {
 
 			int responseCode = downloadConnection.getResponseCode();
 			if (responseCode != 200) {
-				logger.warn("Failed to download image, response code: {}", responseCode);
+				System.out.println("Failed to download image, response code: " + responseCode);
 				return null;
 			}
 
@@ -136,7 +133,7 @@ public class GeminiVisionService {
 				imageBytes = baos.toByteArray();
 			}
 
-			logger.debug("Downloaded image, size: {} bytes, content-type: {}", imageBytes.length, contentType);
+			System.out.println("Downloaded image, size: " + imageBytes.length + " bytes, content-type: " + contentType);
 
 			// Now upload to Gemini File API using multipart/form-data
 			String uploadUrl = "https://generativelanguage.googleapis.com/upload/v1beta/files?key="
@@ -183,7 +180,7 @@ public class GeminiVisionService {
 					JSONObject fileObject = responseJson.getJSONObject("file");
 					String fileUri = fileObject.getString("uri");
 
-					logger.info("Successfully uploaded image to Gemini File API:  {}", fileUri);
+					System.out.println("Successfully uploaded image to Gemini File API: " + fileUri);
 					return fileUri;
 				}
 			} else {
@@ -200,12 +197,12 @@ public class GeminiVisionService {
 						errorMessage = errorBuffer.toString(StandardCharsets.UTF_8);
 					}
 				}
-				logger.error("Failed to upload image to Gemini File API, response code: {}, error: {}",
-						uploadResponseCode, errorMessage);
+				System.out.println("Failed to upload image to Gemini File API, response code: " + uploadResponseCode + ", error: " + errorMessage);
 				return null;
 			}
 		} catch (Exception e) {
-			logger.error("Error uploading image to Gemini File API from:  {}", imageUrl, e);
+			System.out.println("Error uploading image to Gemini File API from: " + imageUrl + " - " + e);
+			e.printStackTrace();
 			return null;
 		}
 	}
@@ -240,7 +237,7 @@ public class GeminiVisionService {
 		contents.put(content);
 		request.put("contents", contents);
 
-		logger.debug("Gemini request: {}", request.toString());
+		System.out.println("Gemini request: " + request.toString());
 
 		return request;
 	}
@@ -254,7 +251,7 @@ public class GeminiVisionService {
 
 		GenerateContentResponse response = client.models.generateContent("gemini-2.5-flash", request.toString(), null);
 
-		logger.debug("Gemini response: {}", response.text());
+		System.out.println("Gemini response: " + response.text());
 
 		return response.text();
 	}
@@ -273,12 +270,13 @@ public class GeminiVisionService {
 				if (parts.length() > 0) {
 					JSONObject part = parts.getJSONObject(0);
 					String text = part.getString("text");
-					logger.info("Gemini response text: {}", text);
+					System.out.println("Gemini response text: " + text);
 					return parsePlayerTag(text);
 				}
 			}
 		} catch (Exception e) {
-			logger.error("Error parsing Gemini response", e);
+			System.out.println("Error parsing Gemini response: " + e);
+			e.printStackTrace();
 		}
 		return null;
 	}
