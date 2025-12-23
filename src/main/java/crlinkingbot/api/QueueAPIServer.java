@@ -300,12 +300,29 @@ public class QueueAPIServer {
 						JSONObject linkResult = LostCRManagerClient.linkPlayer(playerTag, request.getUserId());
 
 						if (linkResult.getBoolean("success")) {
-							String successMsg = String.format("Account wurde erfolgreich verknüpft!\n\n"
-									+ "**Spieler-Tag:** `%s`\n" + "**Discord User:** <@%s>", playerTag,
-									request.getUserId());
+							System.out.println(linkResult.toString());
+							String playerName = linkResult.getJSONObject("data").getString("playerName");
+							String successMsg = String.format(
+									"Account wurde erfolgreich verknüpft!\n\n**Spieler-Name:** `%s`\n"
+											+ "**Spieler-Tag:** `%s`\n" + "**Discord User:** <@%s>",
+									playerName, playerTag, request.getUserId());
 							MessageUtil.sendSuccess(channel, "Account verknüpft", successMsg);
 
-							// personalisierte nachricht hier
+							String individualMsg = "Hallo <@" + request.getUserId() + ">,\r\n"
+									+ "die Verlinkung mit unserem **Tracking-Bot** wurde erfolgreich abgeschlossen!\r\n"
+									+ "\r\n"
+									+ "Du befindest dich jetzt **in unserer Warteschlange** für den Clanbeitritt.\r\n"
+									+ "Die Reihenfolge des Beitritts und der Clan, dem wir dich zuordnen werden, richten sich nach deiner **Leistung im Ranked** – diese hat **Priorität vor den Trophäen**.\r\n"
+									+ "Zudem fließt unsere Einschätzung mit ein.\r\n"
+									+ "Es lohnt sich also, weiter zu **grinden**, um deine Chancen zu erhöhen. <:Peepo_Stonks:1312189892008087563>\r\n"
+									+ "\r\n"
+									+ "Sobald du **in einem unserer Clans bist**, greift unser **internes Auf- und Abstiegssystem**. Dieses wird **zu Beginn jeder Season** angewendet und basiert auf **deiner Leistung der beendeten Season**. Dadurch sind innerhalb der Clan-Family **Auf- und Abstiege** zwischen den Clans möglich.\r\n"
+									+ "\r\n"
+									+ "Sobald du für einen Clanplatz ausgewählt wirst, **melden wir uns wieder bei dir**.\r\n"
+									+ "Das kann **schon bald**, je nach Aktivität der anderen Bewerber aber auch **etwas länger dauern**.\r\n"
+									+ "\r\n" + "Bleib aktiv und viel Erfolg beim Pushen!\r\n" + "LG die CR-Vize";
+
+							channel.sendMessage(individualMsg).queue();
 
 						} else {
 							String errorMsg = "Es gab einen Fehler beim Verknüpfen des Accounts.";

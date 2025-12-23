@@ -22,9 +22,9 @@ public class LinkCommand extends ListenerAdapter {
 	// Allowed role IDs
 	private static final String ROLE_ID_1 = "1404574565350506587";
 	private static final String ROLE_ID_2 = "1108472754149281822";
-	
+
 	private final RequestQueue requestQueue;
-	
+
 	/**
 	 * Constructor accepts RequestQueue
 	 */
@@ -58,7 +58,8 @@ public class LinkCommand extends ListenerAdapter {
 				event.getHook().editOriginalEmbeds(
 						MessageUtil.createErrorEmbed(title, "Du hast keine Berechtigung, diesen Befehl auszuführen."))
 						.queue();
-				System.out.println("User " + event.getUser().getAsTag() + " attempted to use link command without permission");
+				System.out.println(
+						"User " + event.getUser().getAsTag() + " attempted to use link command without permission");
 				return;
 			}
 
@@ -103,6 +104,8 @@ public class LinkCommand extends ListenerAdapter {
 				return;
 			}
 
+			final MessageChannelUnion finalChannel = channel;
+
 			channel.retrieveMessageById(messageId).queue(message -> {
 				// Check if message has image attachments
 				List<String> imageUrls = message.getAttachments().stream().filter(attachment -> attachment.isImage())
@@ -119,32 +122,36 @@ public class LinkCommand extends ListenerAdapter {
 				String targetUserId = message.getAuthor().getId();
 				String targetUserTag = message.getAuthor().getAsTag();
 				String guildId = event.getGuild() != null ? event.getGuild().getId() : "unknown";
-				
-				LinkingRequest request = new LinkingRequest(
-					messageId, 
-					channelId, 
-					guildId,
-					targetUserId, 
-					targetUserTag, 
-					imageUrls
-				);
+
+				LinkingRequest request = new LinkingRequest(messageId, channelId, guildId, targetUserId, targetUserTag,
+						imageUrls);
 
 				// Enqueue the request
 				requestQueue.enqueue(request);
 				int queuePosition = requestQueue.size();
-				
+
 				// Add processing reaction to the original message
 				message.addReaction(net.dv8tion.jda.api.entities.emoji.Emoji.fromUnicode("⏳")).queue();
 
 				// Reply with success embed
-				String successMessage = String.format(
-					"Anfrage wurde zur Warteschlange hinzugefügt!\n\n" +
-					"**Position in der Warteschlange:** %d\n\n" +
-					"Die Anfrage wird verarbeitet, sobald der Queue Worker ausgeführt wird.",
-					queuePosition
-				);
+				String successMessage = "Hallo <@" + targetUserId + ">,\r\n"
+						+ "Wir haben deine Bewerbung erfolgreich erhalten!\r\n" + "\r\n"
+						+ "Im nächsten Schritt wirst du mit unserem **Tracking-Bot** verlinkt.\r\n"
+						+ "Dieser Bot erfasst automatisch deine **Trophäen- und Ranked-Statistiken**, damit wir deinen aktuellen Fortschritt im Spiel nachvollziehen können.\r\n"
+						+ "\r\n"
+						+ "Sobald die Verknüpfung hergestellt ist, läuft das Tracking automatisch weiter – du musst dafür nichts weiter tun.\r\n"
+						+ "Nach dem Verlinken wirst du **wieder von uns hören**, sobald es mit deiner Bewerbung weitergeht.\r\n"
+						+ "\r\n" + "Vielen Dank für dein Interesse an der Lost Family!\r\n" + "LG die CR-Vize";
 
-				event.getHook().editOriginalEmbeds(MessageUtil.createSuccessEmbed(title, successMessage)).queue();
+				event.getHook().editOriginal(".").queue(msg -> {
+					try {
+						Thread.sleep(50);
+					} catch (InterruptedException e) {
+						e.printStackTrace();
+					}
+					msg.delete().queue();
+				});
+				finalChannel.sendMessage(successMessage).queue();
 
 				System.out.println("Enqueued request for " + imageUrls.size() + " images from message " + messageId
 						+ " in channel " + channelId + " by command from user " + event.getUser().getAsTag()
