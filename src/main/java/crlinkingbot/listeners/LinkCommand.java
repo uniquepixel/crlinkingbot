@@ -72,6 +72,11 @@ public class LinkCommand extends ListenerAdapter {
 						.queue();
 				return;
 			}
+			OptionMapping noping = event.getOption("noping");
+			boolean ping = true;
+			if (noping != null) {
+				ping = false;
+			}
 
 			String messagelink = messagelinkOption.getAsString();
 
@@ -105,7 +110,7 @@ public class LinkCommand extends ListenerAdapter {
 			}
 
 			final MessageChannelUnion finalChannel = channel;
-
+			final boolean finalping = ping;
 			channel.retrieveMessageById(messageId).queue(message -> {
 				// Check if message has image attachments
 				List<String> imageUrls = message.getAttachments().stream().filter(attachment -> attachment.isImage())
@@ -134,14 +139,15 @@ public class LinkCommand extends ListenerAdapter {
 				message.addReaction(net.dv8tion.jda.api.entities.emoji.Emoji.fromUnicode("⏳")).queue();
 
 				// Reply with success embed
-				String successMessage = "Hallo <@" + targetUserId + ">,\r\n"
+				String successMessage = finalping ? "Hallo <@" + targetUserId + ">,\r\n"
 						+ "Wir haben deine Bewerbung erfolgreich erhalten!\r\n" + "\r\n"
 						+ "Im nächsten Schritt wirst du mit unserem **Tracking-Bot** verlinkt.\r\n"
 						+ "Dieser Bot erfasst automatisch deine **Trophäen- und Ranked-Statistiken**, damit wir deinen aktuellen Fortschritt im Spiel nachvollziehen können.\r\n"
 						+ "\r\n"
 						+ "Sobald die Verknüpfung hergestellt ist, läuft das Tracking automatisch weiter – du musst dafür nichts weiter tun.\r\n"
 						+ "Nach dem Verlinken wirst du **wieder von uns hören**, sobald es mit deiner Bewerbung weitergeht.\r\n"
-						+ "\r\n" + "Vielen Dank für dein Interesse an der Lost Family!\r\n" + "LG die CR-Vize";
+						+ "\r\n" + "Vielen Dank für dein Interesse an der Lost Family!\r\n" + "LG die CR-Vize"
+						: "Verlinkung eingereicht.";
 
 				event.getHook().editOriginal(".").queue(msg -> {
 					try {
@@ -151,7 +157,11 @@ public class LinkCommand extends ListenerAdapter {
 					}
 					msg.delete().queue();
 				});
-				finalChannel.sendMessage(successMessage).queue();
+				finalChannel.sendMessage(successMessage).queue(msg -> {
+					if (!finalping) {
+						msg.delete().queueAfter(10, java.util.concurrent.TimeUnit.SECONDS);
+					}
+				});
 
 				System.out.println("Enqueued request for " + imageUrls.size() + " images from message " + messageId
 						+ " in channel " + channelId + " by command from user " + event.getUser().getAsTag()

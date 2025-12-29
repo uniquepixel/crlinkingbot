@@ -325,7 +325,7 @@ public class QueueAPIServer {
 							channel.sendMessage(individualMsg).queue();
 
 						} else {
-							String errorMsg = "Es gab einen Fehler beim Verknüpfen des Accounts.";
+							String errorMsg = "Es gab einen Fehler beim Verknüpfen des Accounts. \nEin Vize muss sich manuell um die Anfrage kümmern.";
 							if (linkResult.has("data") && linkResult.getJSONObject("data").has("message")) {
 								errorMsg += "\n\n**Fehler:** " + linkResult.getJSONObject("data").getString("message");
 							}
