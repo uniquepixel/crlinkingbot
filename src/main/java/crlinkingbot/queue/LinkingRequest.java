@@ -9,6 +9,8 @@ import java.util.UUID;
 
 /**
  * Represents a linking request in the queue.
+ * Note: Image URLs are no longer stored - they are fetched dynamically from Discord
+ * using the messageId and channelId when needed.
  */
 public class LinkingRequest {
     private final String id;
@@ -17,7 +19,6 @@ public class LinkingRequest {
     private final String guildId;
     private final String userId;
     private final String userTag;
-    private final List<String> imageUrls;
     private final long timestamp;
     private int retryCount;
 
@@ -25,14 +26,13 @@ public class LinkingRequest {
      * Constructor for a new linking request
      */
     public LinkingRequest(String messageId, String channelId, String guildId, String userId, 
-                         String userTag, List<String> imageUrls) {
+                         String userTag) {
         this.id = UUID.randomUUID().toString();
         this.messageId = messageId;
         this.channelId = channelId;
         this.guildId = guildId;
         this.userId = userId;
         this.userTag = userTag;
-        this.imageUrls = new ArrayList<>(imageUrls);
         this.timestamp = System.currentTimeMillis();
         this.retryCount = 0;
     }
@@ -41,7 +41,7 @@ public class LinkingRequest {
      * Constructor for loading from JSON
      */
     private LinkingRequest(String id, String messageId, String channelId, String guildId,
-                          String userId, String userTag, List<String> imageUrls, 
+                          String userId, String userTag, 
                           long timestamp, int retryCount) {
         this.id = id;
         this.messageId = messageId;
@@ -49,7 +49,6 @@ public class LinkingRequest {
         this.guildId = guildId;
         this.userId = userId;
         this.userTag = userTag;
-        this.imageUrls = new ArrayList<>(imageUrls);
         this.timestamp = timestamp;
         this.retryCount = retryCount;
     }
@@ -65,7 +64,6 @@ public class LinkingRequest {
         json.put("guildId", guildId);
         json.put("userId", userId);
         json.put("userTag", userTag);
-        json.put("imageUrls", new JSONArray(imageUrls));
         json.put("timestamp", timestamp);
         json.put("retryCount", retryCount);
         return json;
@@ -75,12 +73,7 @@ public class LinkingRequest {
      * Deserialize from JSON
      */
     public static LinkingRequest fromJSON(JSONObject json) {
-        List<String> urls = new ArrayList<>();
-        JSONArray urlArray = json.getJSONArray("imageUrls");
-        for (int i = 0; i < urlArray.length(); i++) {
-            urls.add(urlArray.getString(i));
-        }
-
+        // Handle backward compatibility - ignore imageUrls if present in old JSON
         return new LinkingRequest(
             json.getString("id"),
             json.getString("messageId"),
@@ -88,7 +81,6 @@ public class LinkingRequest {
             json.getString("guildId"),
             json.getString("userId"),
             json.getString("userTag"),
-            urls,
             json.getLong("timestamp"),
             json.getInt("retryCount")
         );
@@ -124,10 +116,6 @@ public class LinkingRequest {
 
     public String getUserTag() {
         return userTag;
-    }
-
-    public List<String> getImageUrls() {
-        return new ArrayList<>(imageUrls);
     }
 
     public long getTimestamp() {
