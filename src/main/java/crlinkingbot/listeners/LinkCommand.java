@@ -123,13 +123,12 @@ public class LinkCommand extends ListenerAdapter {
 					return;
 				}
 
-				// Create linking request
+				// Create linking request (images will be fetched dynamically when needed)
 				String targetUserId = message.getAuthor().getId();
 				String targetUserTag = message.getAuthor().getAsTag();
 				String guildId = event.getGuild() != null ? event.getGuild().getId() : "unknown";
 
-				LinkingRequest request = new LinkingRequest(messageId, channelId, guildId, targetUserId, targetUserTag,
-						imageUrls);
+				LinkingRequest request = new LinkingRequest(messageId, channelId, guildId, targetUserId, targetUserTag);
 
 				// Enqueue the request
 				requestQueue.enqueue(request);

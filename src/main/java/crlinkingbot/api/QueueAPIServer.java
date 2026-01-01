@@ -20,6 +20,7 @@ import java.io.InputStreamReader;
 import java.io.OutputStream;
 import java.net.InetSocketAddress;
 import java.nio.charset.StandardCharsets;
+import java.util.ArrayList;
 import java.util.List;
 import java.util.stream.Collectors;
 
@@ -164,6 +165,28 @@ public class QueueAPIServer {
 
 				JSONArray requestsArray = new JSONArray();
 				for (LinkingRequest request : requests) {
+					// Dynamically fetch image URLs from Discord message
+					List<String> imageUrls = new ArrayList<>();
+					try {
+						MessageChannelUnion channel = jda.getChannelById(MessageChannelUnion.class, request.getChannelId());
+						if (channel != null) {
+							try {
+								Message message = channel.retrieveMessageById(request.getMessageId()).complete();
+								imageUrls = message.getAttachments().stream()
+									.filter(attachment -> attachment.isImage())
+									.map(attachment -> attachment.getUrl())
+									.collect(Collectors.toList());
+							} catch (Exception e) {
+								System.out.println("Warning: Could not retrieve message " + request.getMessageId() + 
+									" in channel " + request.getChannelId() + " - " + e.getMessage());
+							}
+						} else {
+							System.out.println("Warning: Channel " + request.getChannelId() + " not found for request " + request.getId());
+						}
+					} catch (Exception e) {
+						System.out.println("Warning: Error fetching images for request " + request.getId() + " - " + e.getMessage());
+					}
+
 					JSONObject reqJson = new JSONObject();
 					reqJson.put("id", request.getId());
 					reqJson.put("messageId", request.getMessageId());
@@ -171,7 +194,7 @@ public class QueueAPIServer {
 					reqJson.put("guildId", request.getGuildId());
 					reqJson.put("userId", request.getUserId());
 					reqJson.put("userTag", request.getUserTag());
-					reqJson.put("imageUrls", new JSONArray(request.getImageUrls()));
+					reqJson.put("imageUrls", new JSONArray(imageUrls));
 					reqJson.put("timestamp", request.getTimestamp());
 					reqJson.put("retryCount", request.getRetryCount());
 					requestsArray.put(reqJson);
